@@ -1,0 +1,133 @@
+;Неугодников СЕргей БПИ197
+;вычислить sin(x) с помощью степенного ряда
+;принимает значение с плавающей точкой
+;при вводе больших чисел ломается
+format PE console
+entry start
+
+include 'win32a.inc'
+;--------------------------------------------------------------------------
+section '.data' data readable writable
+
+        strInput db 'Input x: ', 0
+        floatFormat db '%lf', 0
+        strOutput db 'Sin(x) = %1.10f', 10, 0
+
+        x dq ?
+        sinValue dq 0.0
+        floatIncrement dq 1.0
+        i dq 1.0
+        delta dq 0.0
+        fact dq 1.0
+        pow dq ?
+        isEven dw 0
+        temp dq ?
+        epsilon dq 0.001
+        compStatus dq ?
+        tmpESP dd ?
+        doublePi dq 6.2831853071
+;--------------------------------------------------------------------------
+section '.code' code readable executable
+start:
+        FINIT
+
+        mov [tmpESP], esp
+        invoke printf, strInput
+        invoke scanf, floatFormat, x
+        mov esp, [tmpESP]
+
+        call inputCheck
+        call sin
+
+        invoke printf, strOutput, dword[sinValue], dword[sinValue + 4]
+
+finish:
+        call [getch]
+        push 0
+        call [ExitProcess]
+
+plusDoublePi:
+        FLD [x]
+        FADD [doublePi]
+        FSTP [x]
+        jmp inputCheck
+
+minusDoublePi:
+        FLD [x]
+        FSUB [doublePi]
+        FSTP [x]
+        jmp inputCheck
+
+inputCheck:
+        FLD [x]
+        FLD [sinValue]
+        FXCH
+        FCOMI st1
+        jb plusDoublePi
+        FSTP [temp]
+        ret
+
+sin:
+        FLD [x]
+        FST [sinValue]
+        FSTP [pow]
+startLoop:                      ;начало цикла
+        ;x^n
+        FLD [pow]               ;pow * x * x
+        FMUL [x]
+        FMUL [x]
+        FSTP [pow]
+        ; factorial
+        FLD [i]
+        FADD [floatIncrement]   ;i++
+        FSTP [i]
+        FLD [fact]
+        FMUL [i]                ;factorial * i
+        FSTP [fact]
+        FLD [i]
+        FADD [floatIncrement]   ;i++
+        FSTP [i]
+        FLD [fact]
+        FMUL [i]                ;factorial * i
+        FSTP [fact]
+
+        FLD [pow]
+        FDIV [fact]             ;x^i / i!
+        FLD [epsilon]           ;0.001
+        FXCH
+        FCOMI st1               ;x^i / i! < 0.001 ?
+        jb endLoop
+
+        cmp [isEven], 0         ;чередование + и -, т.к. функция нечетная
+        je minus
+        jg plus
+
+minus:
+        FSTP [temp]
+        FLD [sinValue]
+        FSUB [temp]             ;sum - elem[i]
+        FSTP [sinValue]
+        mov [isEven], 1         ;меняем флаг
+        jmp startLoop
+
+plus:
+
+        FADD [sinValue]
+        FSTP [sinValue]         ;sin = sum + elem[i]
+        mov [isEven], 0
+        jmp startLoop
+
+endLoop:
+        ret
+;--------------------------------------------------------------------------
+section '.idata' import data readable
+    library kernel, 'kernel32.dll',\
+            msvcrt, 'msvcrt.dll'
+
+    import kernel,\
+           ExitProcess, 'ExitProcess'
+    import msvcrt,\
+           printf, 'printf',\
+           sprintf, 'sprintf',\
+           scanf, 'scanf',\
+           getch, '_getch'
